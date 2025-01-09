@@ -32,7 +32,7 @@ class CarModel(SimpleBaseModel):
 
 
 def vihicle_photo_path(instance, filename):
-    return f"photos/vehicle/{instance.pk}/photos/{filename}"
+    return f"photos/vehicle/photos/{filename}"
 
 
 class VehiclePhoto(SimpleBaseModel):
