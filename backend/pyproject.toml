@@ -1,0 +1,26 @@
+[tool.black]
+line-length = 95
+target-version = ['py311']
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+  | env
+  | venv
+  | node_modules
+)/
+'''
+
+[tool.isort]
+profile = 'black'
+line_length = 95
+skip_glob = ['*/migrations/*']
