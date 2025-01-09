@@ -1,8 +1,7 @@
+from django.db.models import Count, F, QuerySet, Sum
 from rest_framework import serializers
 
-from django.db.models import QuerySet, Count, F, Sum
-
-from cars.models import CarBrand, CarModel, Expense, Vehicle
+from cars.models import CarBrand, CarModel, Expense, Vehicle, VehiclePhoto
 from users.models import User
 
 
@@ -31,7 +30,7 @@ class VehicleListSerializer(serializers.ModelSerializer):
     def get_expenses_amount(self, obj) -> int:
         expenses_amount = sum(expense.amount for expense in obj.expenses.all())
         return expenses_amount
-    
+
     def get_benefit(self, obj: Vehicle) -> int:
         return obj.calculate_benefit()
 
@@ -128,9 +127,22 @@ class CarModelModelSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "brand"]
 
 
+class VehiclePhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VehiclePhoto
+        fields = ["id", "image"]
+
+    def to_representation(self, instance):
+        """Добавляем поле `url` для получения полного URL изображения."""
+        representation = super().to_representation(instance)
+        representation["url"] = self.context["request"].build_absolute_uri(instance.image.url)
+        return representation
+
+
 class VehicleRetrieveSerializer(serializers.ModelSerializer):
     brand = CarBrandModelSerializer()
     model = CarModelModelSerializer()
+    photos = VehiclePhotoSerializer(many=True, read_only=True)
 
     class Meta:
         model = Vehicle
@@ -148,6 +160,7 @@ class VehicleRetrieveSerializer(serializers.ModelSerializer):
             "description",
             "seller_info",
             "buyer_info",
+            "photos",
         ]
 
 
@@ -156,7 +169,6 @@ class ExpenseSerializer(serializers.ModelSerializer):
         model = Expense
         fields = ["id", "vehicle", "expense_type", "amount", "date", "description"]
         read_only_fields = ["id"]
-        
 
 
 class UserStatisticModelSerializer(serializers.ModelSerializer):
@@ -165,7 +177,7 @@ class UserStatisticModelSerializer(serializers.ModelSerializer):
     vehicle_count = serializers.SerializerMethodField()
     deals_data = serializers.SerializerMethodField()
     graph_datasets = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = User
         fields = [
@@ -175,7 +187,7 @@ class UserStatisticModelSerializer(serializers.ModelSerializer):
             "deals_data",
             "graph_datasets",
         ]
-    
+
     def get_vehicle_by_status(self, obj: User) -> dict:
         """Сколько машин по статусу"""
         data = {}
@@ -183,7 +195,7 @@ class UserStatisticModelSerializer(serializers.ModelSerializer):
             status = vehicle.status
             data[status] = data.get(status, 0) + 1
         return data
-    
+
     def get_expenses_by_status(self, obj: User) -> dict:
         """Сколько расходов по статусу"""
         vehicles: QuerySet[Vehicle] = obj.vehicles.all().prefetch_related("expenses")
@@ -197,7 +209,7 @@ class UserStatisticModelSerializer(serializers.ModelSerializer):
     def get_vehicle_count(self, obj: User) -> int:
         """Всего машин"""
         return obj.vehicles.count()
-    
+
     def get_deals_data(self, obj: User) -> dict:
         """Данные по сделкам"""
         vehicles: QuerySet[Vehicle] = obj.vehicles.all()
@@ -207,62 +219,73 @@ class UserStatisticModelSerializer(serializers.ModelSerializer):
             vehicle.id: vehicle.calculate_benefit() for vehicle in vehicles
         }
         data = {
-            "purchase_total_amount": sum(vehicle.purchase_price for vehicle in purchased_vehicles),
+            "purchase_total_amount": sum(
+                vehicle.purchase_price for vehicle in purchased_vehicles
+            ),
             "sold_total_amount": sum(vehicle.sale_price for vehicle in solded_vehicles),
-            "purchase_avg_price": sum(vehicle.purchase_price for vehicle in purchased_vehicles) / (purchased_vehicles.count() or 1),
-            "sold_avg_price": sum(vehicle.sale_price for vehicle in solded_vehicles) / (solded_vehicles.count() or 1),
+            "purchase_avg_price": sum(vehicle.purchase_price for vehicle in purchased_vehicles)
+            / (purchased_vehicles.count() or 1),
+            "sold_avg_price": sum(vehicle.sale_price for vehicle in solded_vehicles)
+            / (solded_vehicles.count() or 1),
             "benefit": sum(vehicle.calculate_benefit() for vehicle in vehicles),
             "avg_days_between_purchase_and_sale": (
-                sum((vehicle.sale_date - vehicle.purchase_date).days for vehicle in vehicles.filter(purchase_date__isnull=False, sale_date__isnull=False))
+                sum(
+                    (vehicle.sale_date - vehicle.purchase_date).days
+                    for vehicle in vehicles.filter(
+                        purchase_date__isnull=False, sale_date__isnull=False
+                    )
+                )
                 / vehicles.count()
             ),
-            "vehicle_with_benefits": sum(1 for vehicle in vehicles if vehicle_benefits_dict[vehicle.id] > 0),
-            "vehicle_with_losses": sum(1 for vehicle in vehicles if vehicle_benefits_dict[vehicle.id] < 0),
+            "vehicle_with_benefits": sum(
+                1 for vehicle in vehicles if vehicle_benefits_dict[vehicle.id] > 0
+            ),
+            "vehicle_with_losses": sum(
+                1 for vehicle in vehicles if vehicle_benefits_dict[vehicle.id] < 0
+            ),
         }
         return data
 
     def get_graph_datasets(self, obj: User) -> dict:
         """Данные для графиков"""
+
         def get_count_dataset():
             purchase_data = (
                 Vehicle.objects.filter(purchase_date__isnull=False)
                 .values("purchase_date")
-                .annotate(count=Count('id'), date=F('purchase_date'))
-                .order_by('purchase_date')
+                .annotate(count=Count("id"), date=F("purchase_date"))
+                .order_by("purchase_date")
             )
             sale_data = (
                 Vehicle.objects.filter(sale_date__isnull=False)
                 .values("sale_date")
-                .annotate(count=Count('id'), date=F('sale_date'))
-                .order_by('sale_date')
+                .annotate(count=Count("id"), date=F("sale_date"))
+                .order_by("sale_date")
             )
             return {
                 "purchase_dates": list(purchase_data),
                 "sale_dates": list(sale_data),
             }
-        
+
         def get_financial_dataset():
             purchase_data = (
                 Vehicle.objects.filter(purchase_date__isnull=False)
                 .values("purchase_date")
-                .annotate(amount=Sum('purchase_price'), date=F('purchase_date'))
-                .order_by('purchase_date')
+                .annotate(amount=Sum("purchase_price"), date=F("purchase_date"))
+                .order_by("purchase_date")
             )
             sale_data = (
                 Vehicle.objects.filter(sale_date__isnull=False)
                 .values("sale_date")
-                .annotate(amount=Sum('sale_price'), date=F('sale_date'))
-                .order_by('sale_date')
+                .annotate(amount=Sum("sale_price"), date=F("sale_date"))
+                .order_by("sale_date")
             )
             return {
                 "purchase_dates": list(purchase_data),
                 "sale_dates": list(sale_data),
             }
-        
+
         return {
             "count_dataset": get_count_dataset(),
             "financial_dataset": get_financial_dataset(),
         }
-
-    
-        

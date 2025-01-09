@@ -40,6 +40,7 @@ def car_model(db, car_brand):
     """Создаёт тестовую модель автомобиля."""
     return CarModel.objects.create(brand=car_brand, name="Test Model")
 
+
 @pytest.fixture
 def vehicle(create_test_user, car_brand, car_model):
     return Vehicle.objects.create(
@@ -53,4 +54,3 @@ def vehicle(create_test_user, car_brand, car_model):
         status="for_sale",
         purchase_date="2024-12-01",
     )
-

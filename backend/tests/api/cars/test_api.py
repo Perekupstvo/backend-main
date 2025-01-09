@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
-from cars.models import Vehicle, Expense
+from cars.models import Expense, Vehicle
 
 
 class TestListVehicles:
@@ -271,7 +271,6 @@ class TestExpenseCreate:
         assert "vehicle" in response.data
 
 
-
 class TestExpenseDelete:
     @staticmethod
     def url(expense_id):
@@ -301,4 +300,3 @@ class TestExpenseDelete:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert response.data["detail"] == "No Expense matches the given query."
-

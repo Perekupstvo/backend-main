@@ -1,9 +1,10 @@
 from django.db import models
 
+from common.models import SimpleBaseModel
 from users.models import User
 
 
-class CarBrand(models.Model):
+class CarBrand(SimpleBaseModel):
     name = models.CharField(max_length=50, unique=True, verbose_name="Марка")
     country = models.CharField(max_length=50, blank=True, null=True, verbose_name="Страна")
 
@@ -15,7 +16,7 @@ class CarBrand(models.Model):
         return self.name
 
 
-class CarModel(models.Model):
+class CarModel(SimpleBaseModel):
     brand = models.ForeignKey(
         CarBrand, on_delete=models.CASCADE, related_name="models", verbose_name="Марка"
     )
@@ -30,7 +31,22 @@ class CarModel(models.Model):
         return f"{self.name}"
 
 
-class Vehicle(models.Model):
+def vihicle_photo_path(instance, filename):
+    return f"photos/vehicle/{instance.pk}/photos/{filename}"
+
+
+class VehiclePhoto(SimpleBaseModel):
+    image = models.ImageField(upload_to=vihicle_photo_path, verbose_name="Фото")
+
+    class Meta:
+        verbose_name = "Фото автомобиля"
+        verbose_name_plural = "Фото автомобилей"
+
+    def __str__(self):
+        return f"Фото {self.id}"
+
+
+class Vehicle(SimpleBaseModel):
     FOR_SALE = "for_sale"
     IN_PROGRESS = "in_progress"
     SOLD = "sold"
@@ -76,21 +92,26 @@ class Vehicle(models.Model):
     buyer_info = models.TextField(
         verbose_name="Информация о покупателе", null=True, blank=True
     )
+    photos = models.ManyToManyField(
+        VehiclePhoto, related_name="vehicles", verbose_name="Фотографии"
+    )
 
     class Meta:
         verbose_name = "Автомобиль"
         verbose_name_plural = "Автомобили"
-        
+
     def calculate_benefit(self):
-        return (self.sale_price or 0) - (self.purchase_price or 0) - sum(
-            expense.amount for expense in self.expenses.all()
+        return (
+            (self.sale_price or 0)
+            - (self.purchase_price or 0)
+            - sum(expense.amount for expense in self.expenses.all())
         )
 
     def __str__(self):
         return f"{self.model} ({self.vin})"
 
 
-class Expense(models.Model):
+class Expense(SimpleBaseModel):
     REPAID = "repaid"
     DOCUMENTS = "documents"
     DELIVERY = "delivery"

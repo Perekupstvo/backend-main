@@ -1,20 +1,21 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework import status as rest_status
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from cars.models import CarBrand, CarModel, Expense, Vehicle
+from cars.models import CarBrand, CarModel, Expense, Vehicle, VehiclePhoto
 
 from .serializers import (
     CarBrandModelSerializer,
     CarModelModelSerializer,
     ExpenseSerializer,
+    UserStatisticModelSerializer,
     VehicleCreateSerializer,
     VehicleListSerializer,
     VehicleRetrieveSerializer,
     VehicleUpdateSerializer,
-    UserStatisticModelSerializer,
 )
 
 
@@ -72,6 +73,8 @@ class VehicleCreateView(APIView):
 
 
 class VehicleUpdateView(APIView):
+    parser_classes = [MultiPartParser, JSONParser]
+
     def patch(self, request, pk, *args, **kwargs):
         try:
             vehicle = Vehicle.objects.get(pk=pk, owner=request.user)
@@ -84,9 +87,38 @@ class VehicleUpdateView(APIView):
         serializer = VehicleUpdateSerializer(vehicle, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+
+            # Обновление фотографий
+            photos = request.FILES.getlist("photos")
+            if photos:
+                for photo in photos:
+                    photo_instance = VehiclePhoto.objects.create(image=photo)
+                    vehicle.photos.add(photo_instance)
+
             return Response(serializer.data, status=rest_status.HTTP_200_OK)
 
         return Response(serializer.errors, status=rest_status.HTTP_400_BAD_REQUEST)
+
+
+class PhotoDeleteView(APIView):
+    def delete(self, request, photo_id, *args, **kwargs):
+        # Получаем фотографию по её ID
+        photo: VehiclePhoto = get_object_or_404(VehiclePhoto, id=photo_id)
+
+        # Проверяем, что текущий пользователь является владельцем автомобиля, связанного с этой фотографией
+        if not photo.vehicles.filter(owner=request.user).exists():
+            return Response(
+                {"detail": "Вы не являетесь владельцем этой фотографии."},
+                status=rest_status.HTTP_403_FORBIDDEN,
+            )
+
+        # Удаляем фотографию
+        photo.delete()
+
+        return Response(
+            {"detail": "Фотография успешно удалена."},
+            status=rest_status.HTTP_204_NO_CONTENT,
+        )
 
 
 class VehicleDeleteView(APIView):
@@ -128,7 +160,7 @@ class CarModelRetrieveView(APIView):
             return Response(
                 {"detail": "Модель не найдена."}, status=rest_status.HTTP_404_NOT_FOUND
             )
-        serializer = VehicleRetrieveSerializer(vehicle)
+        serializer = VehicleRetrieveSerializer(vehicle, context={"request": request})
         return Response(serializer.data, status=rest_status.HTTP_200_OK)
 
 

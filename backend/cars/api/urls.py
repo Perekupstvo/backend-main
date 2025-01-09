@@ -7,11 +7,12 @@ from .views import (
     ExpenseCreateView,
     ExpenseDeleteView,
     ExpenseListView,
+    PhotoDeleteView,
+    UserStatisticView,
     VehicleCreateView,
     VehicleDeleteView,
     VehicleListView,
     VehicleUpdateView,
-    UserStatisticView,
 )
 
 VEHICLE = "vehicles/"
@@ -27,6 +28,11 @@ urlpatterns = [
     path(VEHICLE + "create/", VehicleCreateView.as_view(), name="vehicle-create"),
     path(VEHICLE + "update/<int:pk>/", VehicleUpdateView.as_view(), name="vehicle-update"),
     path(VEHICLE + "delete/<int:pk>/", VehicleDeleteView.as_view(), name="vehicle-delete"),
+    path(
+        VEHICLE + "photo/delete/<int:photo_id>/",
+        PhotoDeleteView.as_view(),
+        name="vehicle-photo-delete",
+    ),
     path(BRANDS + "list/", CarBrandListView.as_view(), name="car-brand-list"),
     path(MODELS + "list/", CarModelListView.as_view(), name="car-model-list"),
     path(EXPENSES + "list/<int:vehicle_id>/", ExpenseListView.as_view(), name="expense-list"),
